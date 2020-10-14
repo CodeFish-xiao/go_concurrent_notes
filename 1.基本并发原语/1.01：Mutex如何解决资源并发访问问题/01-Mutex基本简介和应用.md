@@ -28,5 +28,48 @@ type Locker interface {
   func(m *Mutex)Lock()
   func(m *Mutex)Unlock()
 ```
-**当一个 goroutine 通过调用 Lock 方法获得了这个锁的拥有权后， 其它请求锁的 goroutine 就会阻塞在 Lock 方法的调用上，直到锁被释放并且自己获取到了这个锁的拥有权。**（跟上述是不是很像，doing something）
+**当一个 goroutine 通过调用 Lock 方法获得了这个锁的拥有权后， 其它请求锁的 goroutine 就会阻塞在 Lock 方法的调用上，直到锁被释放并且自己获取到了这个锁的拥有权。**（跟上述是不是很像，doing something）  
+至于为什么要加锁，以i++来说，线程在处理这一个的时候，会先从内存复制一个值，取完了进行加一放回去，你放的快别人拿的时候看到的就是你改过的值，你放的慢你就把别人的值给覆盖了。
+举个例子吧：
+``` go
+package main
 
+import (
+	"fmt"
+	"sync"
+)
+
+func main() {
+	for i := 0; i < 10; i++ {//简单for循环
+		fmt.Printf("第%d次输出: ",i)
+		UnLock()
+	}
+
+}
+
+func UnLock() {
+	var count = 0
+	// 使用WaitGroup等待10个goroutine完成
+	var wg sync.WaitGroup
+	wg.Add(10)
+	for i := 0; i < 10; i++ {
+		go func() {
+			defer wg.Done()
+			// 对变量count执行10次加1
+			for j := 0; j < 100000; j++ {
+				count++
+			}
+		}()
+	}
+	// 等待10个goroutine完成
+	wg.Wait()
+	fmt.Println(count)
+}
+
+```
+在unLock函数中，10个协程同时对一个进行 10 万次的加 1 操作，我们期望的最后计数的结果是 10 * 100000 = 1000000 (一百万)。但是实际的结果确实这样的：  
+
+![运行结果](https://s1.ax1x.com/2020/10/14/05TCjO.png "未加锁的运行结果")  
+10次的输出都没有一次是正确答案，可见没有加锁的并发读写是多么的不安全。这个问题，有经验的开发人员还是比较容易发现的，但是，很多时候，并发问题隐藏得非常深，即使是有经验的人，也不太容易发现或者 Debug 出来。针对这个问题，Go 提供了一个检测并发访问共享资源是否有问题的工具： race detector，它可以帮助我们自动发现程序有没有 data race 的问题。  
+Go race detector 是基于 Google 的 C/C++ sanitizers 技术实现的，编译器通过探测所有的内存访问，加入代码能监视对这些内存地址的访问（读还是写）。在代码运行的时候，race detector 就能监控到对共享变量的非同步访问，出现 race 的时候，就会打印出警告信息。例如：go run -race counter.go  
+既然这个例子存在 data race 问题，我们就要想办法来解决它。这个时候，我们这节课的主角 Mutex 就要登场了，它可以轻松地消除掉 data race。

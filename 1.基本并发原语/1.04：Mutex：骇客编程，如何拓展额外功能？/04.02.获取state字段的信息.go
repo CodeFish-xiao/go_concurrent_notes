@@ -9,10 +9,10 @@ import (
 )
 
 const ( //能运行，无视报错即可
-	mutexLocked = 1 << iota // mutex is locked
-	mutexWoken
-	mutexStarving
-	mutexWaiterShift = iota
+	mutexLocked1 = 1 << iota // mutex is locked
+	mutexWoken1
+	mutexStarving1
+	mutexWaiterShift1 = iota
 )
 
 type MyMutex struct {
@@ -23,27 +23,27 @@ type MyMutex struct {
 func (m *MyMutex) Count() int {
 	// 获取state字段的值
 	v := atomic.LoadInt32((*int32)(unsafe.Pointer(&m.Mutex)))
-	v = v >> mutexWaiterShift //得到等待者的数值
-	v = v + (v & mutexLocked) //再加上锁持有者的数量，0或者1
+	v = v >> mutexWaiterShift1 //得到等待者的数值
+	v = v + (v & mutexLocked1) //再加上锁持有者的数量，0或者1
 	return int(v)
 }
 
 // 锁是否被持有
 func (m *MyMutex) IsLocked() bool {
 	state := atomic.LoadInt32((*int32)(unsafe.Pointer(&m.Mutex)))
-	return state&mutexLocked == mutexLocked
+	return state&mutexLocked1 == mutexLocked1
 }
 
 // 是否有等待者被唤醒
 func (m *MyMutex) IsWoken() bool {
 	state := atomic.LoadInt32((*int32)(unsafe.Pointer(&m.Mutex)))
-	return state&mutexWoken == mutexWoken
+	return state&mutexWoken1 == mutexWoken1
 }
 
 // 锁是否处于饥饿状态
 func (m *MyMutex) IsStarving() bool {
 	state := atomic.LoadInt32((*int32)(unsafe.Pointer(&m.Mutex)))
-	return state&mutexStarving == mutexStarving
+	return state&mutexStarving1 == mutexStarving1
 }
 
 func count() {
